@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">Smart Timer</string>
+    <string name="clock">Clock</string>
+    <string name="reminders">Reminders</string>
+    <string name="hrs">hrs</string>
+    <string name="mins">mins</string>
+    <string name="secs">secs</string>
+    <string name="delay">delay(sec)</string>
+    <string name="loop">loop</string>
+    <string name="repeat">repeat</string>
+    <string name="colon">:</string>
+</resources>
