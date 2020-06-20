@@ -4,9 +4,6 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <data>
-
-        <import type="android.view.View" />
-
         <variable
             name="countDown"
             type="com.cleverchuk.smarttimer.ui.TimeFragment" />
@@ -34,7 +31,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="@{String.valueOf(countDown.hr)}"
+                android:text='@{String.format("%02d",countDown.hr)}'
                 android:textSize="64sp"
                 android:textStyle="bold"
                 tools:text="Hr" />
@@ -51,7 +48,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="@{String.valueOf(countDown.min)}"
+                android:text='@{String.format("%02d",countDown.min)}'
                 android:textSize="64sp"
                 android:textStyle="bold"
                 tools:text="Min" />
@@ -68,7 +65,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="@{String.valueOf(countDown.sec)}"
+                android:text='@{String.format("%02d",countDown.sec)}'
                 android:textSize="64sp"
                 android:textStyle="bold"
                 tools:text="Sec" />

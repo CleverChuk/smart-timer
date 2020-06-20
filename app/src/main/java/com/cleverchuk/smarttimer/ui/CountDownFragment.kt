@@ -7,12 +7,9 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.lifecycle.observe
 import androidx.navigation.fragment.findNavController
-import androidx.navigation.fragment.navArgs
 import com.cleverchuk.smarttimer.R
 import com.cleverchuk.smarttimer.databinding.FragmentCountDownBinding
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.supervisorScope
+import com.google.android.material.floatingactionbutton.FloatingActionButton
 import java.util.concurrent.Executors
 
 
@@ -27,14 +24,24 @@ class CountDownFragment : Fragment() {
         val args = CountDownFragmentArgs.fromBundle(requireArguments())
         binding.countDown = args.timeFragments
 
-        val timer = Timer(args.timeFragments.hr, args.timeFragments.min, args.timeFragments.sec, executor)
+        val timer = Timer(executor)
         timer.timeFragment.observe(viewLifecycleOwner) { binding.countDown = it }
         timer.state.observe(viewLifecycleOwner) {
             if ((it == Timer.State.STOPPED) and args.timeFragments.repeat)
-                binding.root.postDelayed({ timer.countDown(timeFragment = args.timeFragments) }, args.timeFragments.delay * 1000L)
+                binding.root.postDelayed({ timer.start(timeFragment = args.timeFragments) }, args.timeFragments.delay * 1000L)
         }
 
-        binding.linearLayout.postDelayed({ timer.countDown() }, 1000)
+        binding.linearLayout.postDelayed({ timer.start(args.timeFragments) }, 1000)
+        binding.pausePlay.setOnClickListener {
+            if (timer.isPaused()){
+                timer.resume()
+                (it as FloatingActionButton).setImageResource(android.R.drawable.ic_media_pause)
+            }
+            if (timer.isCounting()){
+                timer.pause()
+                (it as FloatingActionButton).setImageResource(android.R.drawable.ic_media_play)
+            }
+        }
         binding.cancel.setOnClickListener { findNavController().navigate(R.id.clock_dest) }
         return binding.root
     }
