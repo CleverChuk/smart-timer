@@ -2,7 +2,7 @@
 <navigation xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/smart_timer_navigation"
-    app:startDestination="@id/clock_dest">
+    app:startDestination="@id/combinedFragment">
 
     <fragment
         android:id="@+id/clock_dest"
@@ -22,4 +22,8 @@
             android:name="timeFragments"
             app:argType="com.cleverchuk.smarttimer.ui.TimeFragment" />
     </fragment>
+    <fragment
+        android:id="@+id/combinedFragment"
+        android:name="com.cleverchuk.smarttimer.ui.CombinedFragment"
+        android:label="CombinedFragment" />
 </navigation>

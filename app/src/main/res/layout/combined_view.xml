@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layout>
+    <ViewSwitcher xmlns:android="http://schemas.android.com/apk/res/android"
+        android:id="@+id/view_switcher"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <include
+            android:id="@+id/clock_dest"
+            layout="@layout/fragment_clock" />
+
+        <include
+            android:id="@+id/count_down_dest"
+            layout="@layout/fragment_count_down" />
+    </ViewSwitcher>
+</layout>

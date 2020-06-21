@@ -2,6 +2,9 @@ package com.cleverchuk.smarttimer.ui
 
 import android.os.Parcel
 import android.os.Parcelable
+import androidx.annotation.AnyThread
+import androidx.annotation.UiThread
+import androidx.annotation.WorkerThread
 import androidx.lifecycle.MutableLiveData
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Future
@@ -42,22 +45,29 @@ data class TimeFragment(var hr: Int = 0, var min: Int = 58, var sec: Int = 30, v
 class Timer(private val executor: ExecutorService) {
     val FIRST_SIX_BIT_MASK: Int = 63
     val SECOND_SIX_MASK: Int = 4032
-    val LAST_FOUR_BIT_MASK = 61440
+    val LAST_FOUR_BIT_MASK = 126976
 
     val timeFragment: MutableLiveData<TimeFragment> = MutableLiveData()
     var state = MutableLiveData<State>(State.IDLE)
-    private lateinit var task: Future<*>
+    var time: Int = 0
 
-    private var hr: Int = 0
-    private var min: Int = 0
-    private var sec: Int = 0
-    private var time: Int = 0
+    private var task: Future<*>? = null
+    var hr: Int = 0
+        get() = extractHour(time)
+        private set
+    var min: Int = 0
+        get() = extractMinute(time)
+        private set
+    var sec: Int = 0
+        get() = extractSecond(time)
+        private set
 
+    @AnyThread
     private fun start() {
-        var time = combineTime(hr, min, sec)
         task = executor.submit {
             state.postValue(State.COUNTING)
             while (time > 0) {
+                Thread.sleep(1000)
                 time--
                 if (extractMinute(time) > 59 && extractSecond(time) > 59)
                     time = combineTime(extractHour(time), 59, 59)
@@ -66,45 +76,60 @@ class Timer(private val executor: ExecutorService) {
                 else if (extractMinute(time) > 0 && extractSecond(time) == 0)
                     time = combineTime(extractHour(time), extractMinute(time) - 1, 59)
 
-                this.time = time
                 timeFragment.postValue(TimeFragment(extractHour(time), extractMinute(time), extractSecond(time)))
-                Thread.sleep(1000)
             }
-            state.postValue(State.STOPPED)
+            state.postValue(State.DONE)
         }
     }
 
+    @UiThread
     fun start(timeFragment: TimeFragment) {
         state.value = State.STARTED
-        hr = timeFragment.hr
-        min = timeFragment.min
-        sec = timeFragment.sec
+        time = combineTime(timeFragment.hr, timeFragment.min, timeFragment.sec)
         start()
     }
 
+    @WorkerThread
+    fun start(time: Int) {
+        state.postValue(State.STARTED)
+        this.time = time
+        start()
+    }
+
+    @UiThread
     fun resume() {
         state.value = State.STARTED
-        hr = extractHour(time)
-        min = extractMinute(time)
-        sec = extractSecond(time)
         start()
     }
 
+    @UiThread
     fun pause() {
         state.value = State.PAUSED
-        val cancelled = task.cancel(true)
+        task?.cancel(true)
     }
 
+    @UiThread
+    fun stop() {
+        pause()
+        state.value = State.STOPPED
+    }
+
+    @AnyThread
     fun isPaused() = state.value == State.PAUSED
 
+    @AnyThread
     fun isCounting() = state.value == State.COUNTING
 
+    @AnyThread
     fun extractHour(time: Int) = (time and LAST_FOUR_BIT_MASK) shr 12
 
+    @AnyThread
     fun extractMinute(time: Int) = (time and SECOND_SIX_MASK) shr 6
 
+    @AnyThread
     fun extractSecond(time: Int) = (time and FIRST_SIX_BIT_MASK)
 
+    @AnyThread
     fun combineTime(hr: Int, min: Int, sec: Int) = (hr shl 12) or (min shl 6) or sec
 
     enum class State {
@@ -112,6 +137,7 @@ class Timer(private val executor: ExecutorService) {
         STARTED,
         COUNTING,
         STOPPED,
-        PAUSED
+        PAUSED,
+        DONE
     }
 }

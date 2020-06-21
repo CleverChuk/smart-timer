@@ -27,22 +27,27 @@ class CountDownFragment : Fragment() {
         val timer = Timer(executor)
         timer.timeFragment.observe(viewLifecycleOwner) { binding.countDown = it }
         timer.state.observe(viewLifecycleOwner) {
-            if ((it == Timer.State.STOPPED) and args.timeFragments.repeat)
+            if ((it == Timer.State.DONE) and args.timeFragments.repeat)
                 binding.root.postDelayed({ timer.start(timeFragment = args.timeFragments) }, args.timeFragments.delay * 1000L)
         }
 
-        binding.linearLayout.postDelayed({ timer.start(args.timeFragments) }, 1000)
         binding.pausePlay.setOnClickListener {
             if (timer.isPaused()){
                 timer.resume()
                 (it as FloatingActionButton).setImageResource(android.R.drawable.ic_media_pause)
             }
+
             if (timer.isCounting()){
                 timer.pause()
                 (it as FloatingActionButton).setImageResource(android.R.drawable.ic_media_play)
             }
         }
-        binding.cancel.setOnClickListener { findNavController().navigate(R.id.clock_dest) }
+
+        binding.cancel.setOnClickListener {
+            findNavController().navigate(R.id.clock_dest)
+            timer.stop()
+        }
+        timer.start(args.timeFragments)
         return binding.root
     }
 
