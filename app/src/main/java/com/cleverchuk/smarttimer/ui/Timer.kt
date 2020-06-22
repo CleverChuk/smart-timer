@@ -6,8 +6,7 @@ import androidx.annotation.AnyThread
 import androidx.annotation.UiThread
 import androidx.annotation.WorkerThread
 import androidx.lifecycle.MutableLiveData
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Future
+import kotlinx.coroutines.*
 
 data class TimeFragment(var hr: Int = 0, var min: Int = 58, var sec: Int = 30, var delay: Int = 10, var repeat: Boolean = true) : Parcelable {
     constructor(parcel: Parcel) : this(
@@ -42,16 +41,12 @@ data class TimeFragment(var hr: Int = 0, var min: Int = 58, var sec: Int = 30, v
 
 }
 
-class Timer(private val executor: ExecutorService) {
-    val FIRST_SIX_BIT_MASK: Int = 63
-    val SECOND_SIX_MASK: Int = 4032
-    val LAST_FOUR_BIT_MASK = 126976
-
+class Timer() {
     val timeFragment: MutableLiveData<TimeFragment> = MutableLiveData()
     var state = MutableLiveData<State>(State.IDLE)
     var time: Int = 0
 
-    private var task: Future<*>? = null
+    private var job: Job? = null
     var hr: Int = 0
         get() = extractHour(time)
         private set
@@ -64,10 +59,10 @@ class Timer(private val executor: ExecutorService) {
 
     @AnyThread
     private fun start() {
-        task = executor.submit {
+        job = CoroutineScope(Dispatchers.Default).launch {
             state.postValue(State.COUNTING)
             while (time > 0) {
-                Thread.sleep(1000)
+                delay(1000)
                 time--
                 if (extractMinute(time) > 59 && extractSecond(time) > 59)
                     time = combineTime(extractHour(time), 59, 59)
@@ -105,14 +100,18 @@ class Timer(private val executor: ExecutorService) {
     @UiThread
     fun pause() {
         state.value = State.PAUSED
-        task?.cancel(true)
+        job?.cancel()
     }
 
     @UiThread
-    fun stop() {
+    fun cancel() {
         pause()
-        state.value = State.STOPPED
+        state.value = State.CANCELLED
     }
+
+    fun isCancelled() = state.value == State.CANCELLED
+
+    fun isDone() = state.value == State.DONE
 
     @AnyThread
     fun isPaused() = state.value == State.PAUSED
@@ -132,12 +131,20 @@ class Timer(private val executor: ExecutorService) {
     @AnyThread
     fun combineTime(hr: Int, min: Int, sec: Int) = (hr shl 12) or (min shl 6) or sec
 
+    fun isIdle() = state.value == State.IDLE
+
     enum class State {
         IDLE,
         STARTED,
         COUNTING,
-        STOPPED,
+        CANCELLED,
         PAUSED,
         DONE
+    }
+
+    companion object {
+        const val FIRST_SIX_BIT_MASK: Int = 63
+        const val SECOND_SIX_MASK: Int = 4032
+        const val LAST_FOUR_BIT_MASK = 126976
     }
 }

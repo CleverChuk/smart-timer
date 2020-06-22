@@ -15,7 +15,7 @@ class StateConverter {
             return when (state) {
                 1 -> Timer.State.STARTED
                 2 -> Timer.State.COUNTING
-                3 -> Timer.State.STOPPED
+                3 -> Timer.State.CANCELLED
                 4 -> Timer.State.PAUSED
                 5 -> Timer.State.DONE
                 else -> Timer.State.IDLE

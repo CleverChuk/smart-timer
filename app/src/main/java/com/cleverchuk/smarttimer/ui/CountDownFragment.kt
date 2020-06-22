@@ -1,20 +1,18 @@
 package com.cleverchuk.smarttimer.ui
 
 import android.os.Bundle
-import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.fragment.app.Fragment
 import androidx.lifecycle.observe
 import androidx.navigation.fragment.findNavController
 import com.cleverchuk.smarttimer.R
 import com.cleverchuk.smarttimer.databinding.FragmentCountDownBinding
 import com.google.android.material.floatingactionbutton.FloatingActionButton
-import java.util.concurrent.Executors
 
 
 class CountDownFragment : Fragment() {
-    val executor = Executors.newSingleThreadExecutor()
     lateinit var binding: FragmentCountDownBinding
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?,
@@ -24,7 +22,7 @@ class CountDownFragment : Fragment() {
         val args = CountDownFragmentArgs.fromBundle(requireArguments())
         binding.countDown = args.timeFragments
 
-        val timer = Timer(executor)
+        val timer = Timer()
         timer.timeFragment.observe(viewLifecycleOwner) { binding.countDown = it }
         timer.state.observe(viewLifecycleOwner) {
             if ((it == Timer.State.DONE) and args.timeFragments.repeat)
@@ -45,14 +43,9 @@ class CountDownFragment : Fragment() {
 
         binding.cancel.setOnClickListener {
             findNavController().navigate(R.id.clock_dest)
-            timer.stop()
+            timer.cancel()
         }
         timer.start(args.timeFragments)
         return binding.root
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        executor.shutdown()
     }
 }

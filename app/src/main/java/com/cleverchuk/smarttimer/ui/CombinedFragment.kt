@@ -1,13 +1,15 @@
 package com.cleverchuk.smarttimer.ui
 
-import android.R
+
 import android.content.Context
+import android.media.MediaPlayer
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.observe
+import com.cleverchuk.smarttimer.R
 import com.cleverchuk.smarttimer.data.StateConverter
 import com.cleverchuk.smarttimer.data.TimerDatabase
 import com.cleverchuk.smarttimer.data.TimerState
@@ -16,8 +18,6 @@ import com.google.android.material.floatingactionbutton.FloatingActionButton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
 
 class CombinedFragment : Fragment() {
     private lateinit var binding: CombinedViewBinding
@@ -25,12 +25,14 @@ class CombinedFragment : Fragment() {
     private val resetTimeFragment = TimeFragment()
     private var currentScreen: Int = 0
     private lateinit var timerDatabase: TimerDatabase
-    private val executor: ExecutorService = Executors.newSingleThreadExecutor()
     private lateinit var timer: Timer
+    private var mediaPlayer: MediaPlayer? = null
 
     override fun onAttach(context: Context) {
         super.onAttach(context)
         timerDatabase = TimerDatabase.getDatabase(context)
+        mediaPlayer = MediaPlayer.create(context, R.raw.faded_chords)
+        mediaPlayer?.isLooping = true
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?,
@@ -67,15 +69,23 @@ class CombinedFragment : Fragment() {
         binding.clockDest.minutePicker.value = timeFragment.min
         binding.clockDest.secondPicker.value = timeFragment.sec
 
-        timer = Timer(executor)
+        timer = Timer()
         timer.timeFragment
                 .observe(viewLifecycleOwner) { binding.countDownDest.countDown = it }
+
         timer.state
                 .observe(viewLifecycleOwner) {
                     if ((it == Timer.State.DONE) and timeFragment.repeat) {
                         binding.root.postDelayed({ timer.start(timeFragment) }, timeFragment.delay * 1000L)
+                        mediaPlayer?.start()
+
                         CoroutineScope(Dispatchers.IO).launch {
-                            timerDatabase.timerStateDao().delete()
+                            timerDatabase.timerStateDao().delete() // TODO interim solution
+                        }
+                    } else {
+                        if (mediaPlayer?.isPlaying == true) {
+                            mediaPlayer?.stop()
+                            mediaPlayer?.prepareAsync()
                         }
                     }
                 }
@@ -92,12 +102,15 @@ class CombinedFragment : Fragment() {
         }
 
         binding.countDownDest.cancel.setOnClickListener {
-            currentScreen = 0
-            binding.viewSwitcher.displayedChild = 0
-            binding.countDownDest.countDown = resetTimeFragment
-            timer.stop()
-            CoroutineScope(Dispatchers.IO).launch {
-                timerDatabase.timerStateDao().delete()
+            if (!timer.isDone()){ // Fix issue with cancelling after postDelay has been scheduled
+                currentScreen = 0
+                binding.viewSwitcher.displayedChild = 0
+                binding.countDownDest.countDown = resetTimeFragment
+
+                timer.cancel()
+                CoroutineScope(Dispatchers.IO).launch {
+                    timerDatabase.timerStateDao().delete()
+                }
             }
         }
 
@@ -107,7 +120,6 @@ class CombinedFragment : Fragment() {
             binding.viewSwitcher.displayedChild = currentScreen
             timer.start(timeFragment)
         }
-        binding.viewSwitcher.displayedChild = currentScreen
 
         // Restore state
         timerDatabase.timerStateDao()
@@ -119,7 +131,7 @@ class CombinedFragment : Fragment() {
                         when (StateConverter.intToState(it.state)) {
                             Timer.State.COUNTING -> timer.start(it.time)
                             Timer.State.PAUSED -> {
-                                binding.countDownDest.pausePlay.setImageResource(R.drawable.ic_media_play)
+                                binding.countDownDest.pausePlay.setImageResource(android.R.drawable.ic_media_play)
                                 timer.state.value = Timer.State.PAUSED
                                 binding.countDownDest.countDown = TimeFragment(
                                         timer.hr,
@@ -130,8 +142,8 @@ class CombinedFragment : Fragment() {
 
                             Timer.State.IDLE -> timer.state.value = Timer.State.IDLE
                             Timer.State.STARTED -> timer.state.value = Timer.State.STARTED
+                            Timer.State.CANCELLED -> timer.state.value = Timer.State.CANCELLED
 
-                            Timer.State.STOPPED -> timer.state.value = Timer.State.STOPPED
                             Timer.State.DONE -> {
                                 timeFragment.hr = timer.extractHour(it.fullTime)
                                 timeFragment.min = timer.extractMinute(it.fullTime)
@@ -143,9 +155,11 @@ class CombinedFragment : Fragment() {
                         }
                     }
 
-                    currentScreen = it?.currentScreen ?: 0
+                    if (it != null) currentScreen = it.currentScreen
                     binding.viewSwitcher.displayedChild = currentScreen
                 }
+
+        binding.viewSwitcher.displayedChild = currentScreen
 
         return binding.root
     }
@@ -164,5 +178,11 @@ class CombinedFragment : Fragment() {
             ))
         }
         super.onPause()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        mediaPlayer?.release()
+        mediaPlayer = null
     }
 }
