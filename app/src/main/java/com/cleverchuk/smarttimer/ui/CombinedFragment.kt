@@ -2,11 +2,13 @@ package com.cleverchuk.smarttimer.ui
 
 
 import android.content.Context
+import android.content.Intent
 import android.media.MediaPlayer
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.observe
 import com.cleverchuk.smarttimer.R
@@ -31,8 +33,6 @@ class CombinedFragment : Fragment() {
     override fun onAttach(context: Context) {
         super.onAttach(context)
         timerDatabase = TimerDatabase.getDatabase(context)
-        mediaPlayer = MediaPlayer.create(context, R.raw.faded_chords)
-        mediaPlayer?.isLooping = true
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?,
@@ -70,100 +70,124 @@ class CombinedFragment : Fragment() {
         binding.clockDest.secondPicker.value = timeFragment.sec
 
         timer = Timer()
-        timer.timeFragment
-                .observe(viewLifecycleOwner) { binding.countDownDest.countDown = it }
+        timer.timeFragment.observe(viewLifecycleOwner) { binding.countDownDest.countDown = it }
+        timer.state.observe(viewLifecycleOwner, this::stateObserver)
 
-        timer.state
-                .observe(viewLifecycleOwner) {
-                    if ((it == Timer.State.DONE) and timeFragment.repeat) {
-                        binding.root.postDelayed({ timer.start(timeFragment) }, timeFragment.delay * 1000L)
-                        mediaPlayer?.start()
-
-                        CoroutineScope(Dispatchers.IO).launch {
-                            timerDatabase.timerStateDao().delete() // TODO interim solution
-                        }
-                    } else {
-                        if (mediaPlayer?.isPlaying == true) {
-                            mediaPlayer?.stop()
-                            mediaPlayer?.prepareAsync()
-                        }
-                    }
-                }
-
-        binding.countDownDest.pausePlay.setOnClickListener {
-            if (timer.isPaused()) {
-                timer.resume()
-                (it as FloatingActionButton).setImageResource(android.R.drawable.ic_media_pause)
-            }
-            if (timer.isCounting()) {
-                timer.pause()
-                (it as FloatingActionButton).setImageResource(android.R.drawable.ic_media_play)
-            }
-        }
-
-        binding.countDownDest.cancel.setOnClickListener {
-            if (!timer.isDone()){ // Fix issue with cancelling after postDelay has been scheduled
-                currentScreen = 0
-                binding.viewSwitcher.displayedChild = 0
-                binding.countDownDest.countDown = resetTimeFragment
-
-                timer.cancel()
-                CoroutineScope(Dispatchers.IO).launch {
-                    timerDatabase.timerStateDao().delete()
-                }
-            }
-        }
-
-        binding.clockDest.loop.setOnClickListener {
-            binding.countDownDest.countDown = timeFragment
-            currentScreen = 1
-            binding.viewSwitcher.displayedChild = currentScreen
-            timer.start(timeFragment)
-        }
-
-        // Restore state
-        timerDatabase.timerStateDao()
-                .observableFindById(1)
-                .observe(viewLifecycleOwner) {
-                    if ((it?.currentScreen == 1)) {
-                        timer.time = it.time
-
-                        when (StateConverter.intToState(it.state)) {
-                            Timer.State.COUNTING -> timer.start(it.time)
-                            Timer.State.PAUSED -> {
-                                binding.countDownDest.pausePlay.setImageResource(android.R.drawable.ic_media_play)
-                                timer.state.value = Timer.State.PAUSED
-                                binding.countDownDest.countDown = TimeFragment(
-                                        timer.hr,
-                                        timer.min,
-                                        timer.sec
-                                )
-                            }
-
-                            Timer.State.IDLE -> timer.state.value = Timer.State.IDLE
-                            Timer.State.STARTED -> timer.state.value = Timer.State.STARTED
-                            Timer.State.CANCELLED -> timer.state.value = Timer.State.CANCELLED
-
-                            Timer.State.DONE -> {
-                                timeFragment.hr = timer.extractHour(it.fullTime)
-                                timeFragment.min = timer.extractMinute(it.fullTime)
-
-                                timeFragment.sec = timer.extractSecond(it.fullTime)
-                                timeFragment.delay = it.delay
-                                timer.state.value = Timer.State.DONE
-                            }
-                        }
-                    }
-
-                    if (it != null) currentScreen = it.currentScreen
-                    binding.viewSwitcher.displayedChild = currentScreen
-                }
-
+        binding.countDownDest.pausePlay.setOnClickListener(this::togglePausePlay)
+        binding.countDownDest.cancel.setOnClickListener(this::cancelCountDown)
+        binding.clockDest.loop.setOnClickListener(this::loop)
         binding.viewSwitcher.displayedChild = currentScreen
 
         return binding.root
     }
 
+    private fun updateState(timerState: TimerState?) {
+        if ((timerState?.currentScreen == 1) && !timer.isCounting()) { // handling for when user leaves screen but coroutine wasn't cancelled
+            timer.time = timerState.time
+            timeFragment.hr = timer.extractHour(timerState.fullTime)
+            timeFragment.min = timer.extractMinute(timerState.fullTime)
+            timeFragment.sec = timer.extractSecond(timerState.fullTime)
+
+            when (StateConverter.intToState(timerState.state)) {
+                Timer.State.COUNTING -> timer.start(timerState.time)
+                Timer.State.PAUSED -> {
+                    binding.countDownDest.pausePlay.setImageResource(android.R.drawable.ic_media_play)
+                    timer.state.value = Timer.State.PAUSED
+                    binding.countDownDest.countDown = TimeFragment(
+                            timer.hr,
+                            timer.min,
+                            timer.sec
+                    )
+                }
+
+                Timer.State.IDLE -> timer.state.value = Timer.State.IDLE
+                Timer.State.STARTED -> timer.state.value = Timer.State.STARTED
+                Timer.State.CANCELLED -> timer.state.value = Timer.State.CANCELLED
+
+                Timer.State.DONE -> {
+                    timeFragment.hr = timer.extractHour(timerState.fullTime)
+                    timeFragment.min = timer.extractMinute(timerState.fullTime)
+
+                    timeFragment.sec = timer.extractSecond(timerState.fullTime)
+                    timeFragment.delay = timerState.delay
+                    timer.state.value = Timer.State.DONE
+                }
+            }
+        }
+
+        if (timerState != null) currentScreen = timerState.currentScreen
+        binding.viewSwitcher.displayedChild = currentScreen
+    }
+
+    private fun togglePausePlay(view: View) {
+        if (timer.isPaused()) {
+            timer.resume()
+            (view as FloatingActionButton).setImageResource(android.R.drawable.ic_media_pause)
+        }
+        if (timer.isCounting()) {
+            timer.pause()
+            (view as FloatingActionButton).setImageResource(android.R.drawable.ic_media_play)
+        }
+    }
+
+    private fun cancelCountDown(view: View) {
+        currentScreen = 0
+        binding.viewSwitcher.displayedChild = 0
+        binding.countDownDest.countDown = resetTimeFragment
+
+        timer.cancel()
+        CoroutineScope(Dispatchers.IO).launch {
+            timerDatabase.timerStateDao().delete()
+        }
+    }
+
+    private fun loop(view: View) {
+        timeFragment.delay = binding.clockDest.repeatDelayPicker.value
+        timeFragment.hr = binding.clockDest.hourPicker.value
+        timeFragment.min = binding.clockDest.minutePicker.value
+        timeFragment.sec = binding.clockDest.secondPicker.value
+
+        binding.countDownDest.countDown = timeFragment
+        currentScreen = 1
+        binding.viewSwitcher.displayedChild = currentScreen
+        binding.countDownDest.pausePlay.setImageResource(android.R.drawable.ic_media_pause)
+        timer.start(timeFragment)
+    }
+
+    private fun stateObserver(timerState: Timer.State?) {
+        if ((timerState == Timer.State.DONE) && timeFragment.repeat) {
+            binding.root.postDelayed({
+                    if (timer.isDone())
+                    timer.start(timeFragment)
+            }, timeFragment.delay * 1000L)
+            mediaPlayer?.start()
+
+            CoroutineScope(Dispatchers.IO).launch {
+                timerDatabase.timerStateDao().delete() // TODO interim solution
+            }
+        } else {
+            if (mediaPlayer?.isPlaying == true) {
+                mediaPlayer?.stop()
+                mediaPlayer?.prepareAsync()
+            }
+        }
+    }
+
+    override fun onResume() {
+        // Restore state
+        timerDatabase.timerStateDao()
+                .observableFindById(1)
+                .observe(viewLifecycleOwner, this::updateState)
+
+        Intent(requireContext(), CountDownService::class.java)
+                .also { intent ->
+                    intent.action = Timer.State.CANCELLED.name
+                    ContextCompat.startForegroundService(requireContext(), intent)
+                }
+        mediaPlayer = MediaPlayer.create(context, R.raw.faded_chords)
+        mediaPlayer?.isLooping = true
+        super.onResume()
+    }
 
     override fun onPause() {
         // Save state
@@ -177,12 +201,17 @@ class CombinedFragment : Fragment() {
                     StateConverter.stateToInt(timer.state.value)
             ))
         }
-        super.onPause()
-    }
 
-    override fun onDestroy() {
-        super.onDestroy()
         mediaPlayer?.release()
         mediaPlayer = null
+
+        Intent(requireContext(), CountDownService::class.java)
+                .also {
+                    it.putExtra("fulltime", timeFragment)
+                    it.putExtra("time", timer.time)
+                    it.action = timer.state.value?.name
+                    ContextCompat.startForegroundService(requireContext(), it)
+                }
+        super.onPause()
     }
 }

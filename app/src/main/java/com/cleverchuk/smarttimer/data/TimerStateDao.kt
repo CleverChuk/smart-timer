@@ -5,11 +5,15 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 
 @Dao
 interface TimerStateDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(timerState: TimerState)
+
+    @Update
+    suspend fun update(timerState: TimerState)
 
     @Query("SELECT * FROM timer_state WHERE id=:id")
     suspend fun findById(id: Int): TimerState?

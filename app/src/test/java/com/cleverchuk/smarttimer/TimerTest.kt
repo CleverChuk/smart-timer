@@ -1,16 +1,14 @@
 package com.cleverchuk.smarttimer
 
-import com.cleverchuk.smarttimer.ui.TimeFragment
 import com.cleverchuk.smarttimer.ui.Timer
 import org.junit.Test
-import java.util.concurrent.Executors
 
 
 class TimerTest {
     @ExperimentalUnsignedTypes
     @Test
     fun testCountDown() {
-        val timer = Timer(Executors.newSingleThreadExecutor())
+        val timer = Timer()
 
         var time = timer.combineTime(19, 56, 20)
 

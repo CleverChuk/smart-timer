@@ -2,6 +2,7 @@ package com.cleverchuk.smarttimer.ui
 
 import android.os.Parcel
 import android.os.Parcelable
+import android.util.Log
 import androidx.annotation.AnyThread
 import androidx.annotation.UiThread
 import androidx.annotation.WorkerThread
@@ -59,22 +60,34 @@ class Timer() {
 
     @AnyThread
     private fun start() {
-        job = CoroutineScope(Dispatchers.Default).launch {
-            state.postValue(State.COUNTING)
-            while (time > 0) {
-                delay(1000)
-                time--
-                if (extractMinute(time) > 59 && extractSecond(time) > 59)
-                    time = combineTime(extractHour(time), 59, 59)
-                else if (extractSecond(time) > 59)
-                    time = combineTime(extractHour(time), extractMinute(time), 59)
-                else if (extractMinute(time) > 0 && extractSecond(time) == 0)
-                    time = combineTime(extractHour(time), extractMinute(time) - 1, 59)
-
-                timeFragment.postValue(TimeFragment(extractHour(time), extractMinute(time), extractSecond(time)))
+        if (job == null || job?.isActive == false) {
+            job = CoroutineScope(Dispatchers.Default).launch {
+                state.postValue(State.COUNTING)
+                while (time > 0) {
+                    delay(1000)
+                    time = updateTime()
+                    timeFragment.postValue(TimeFragment(extractHour(time), extractMinute(time), extractSecond(time)))
+                }
+                state.postValue(State.DONE)
             }
-            state.postValue(State.DONE)
         }
+    }
+
+    private fun updateTime(): Int {
+        Log.i("from: " + Thread.currentThread().name, String.format("%d : %d : %d", extractHour(time), extractMinute(time), extractSecond(time)))
+        time--
+        if (extractMinute(time) > 59 && extractSecond(time) > 59)
+            return combineTime(extractHour(time), 59, 59)
+        else if (extractSecond(time) > 59)
+            return combineTime(extractHour(time), extractMinute(time), 59)
+        else if (extractMinute(time) > 0 && extractSecond(time) == 0)
+            return combineTime(extractHour(time), extractMinute(time) - 1, 59)
+
+        return time
+    }
+
+    private fun cancelJob() {
+        if (job?.isActive == true) job?.cancel()
     }
 
     @UiThread
@@ -99,19 +112,22 @@ class Timer() {
 
     @UiThread
     fun pause() {
+        cancelJob()
         state.value = State.PAUSED
-        job?.cancel()
     }
 
     @UiThread
     fun cancel() {
-        pause()
+        cancelJob()
         state.value = State.CANCELLED
     }
 
     fun isCancelled() = state.value == State.CANCELLED
 
     fun isDone() = state.value == State.DONE
+
+
+    fun isStarted() = state.value == State.STARTED
 
     @AnyThread
     fun isPaused() = state.value == State.PAUSED
