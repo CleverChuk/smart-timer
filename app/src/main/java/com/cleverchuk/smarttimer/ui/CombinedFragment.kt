@@ -156,19 +156,18 @@ class CombinedFragment : Fragment() {
 
     private fun stateObserver(timerState: Timer.State?) {
         if ((timerState == Timer.State.DONE) && timeFragment.repeat) {
-            binding.root.postDelayed({
-                    if (timer.isDone())
-                    timer.start(timeFragment)
-            }, timeFragment.delay * 1000L)
-            mediaPlayer?.start()
+            binding.root.postDelayed(
+                    {
+                        mediaPlayer?.stop()
+                        mediaPlayer?.prepareAsync()
+                        if (timer.isDone())
+                            timer.start(timeFragment)
+                    },
+                    timeFragment.delay * 1000L)
 
+            mediaPlayer?.start()
             CoroutineScope(Dispatchers.IO).launch {
                 timerDatabase.timerStateDao().delete() // TODO interim solution
-            }
-        } else {
-            if (mediaPlayer?.isPlaying == true) {
-                mediaPlayer?.stop()
-                mediaPlayer?.prepareAsync()
             }
         }
     }
