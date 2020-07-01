@@ -135,7 +135,10 @@ class CombinedFragment : Fragment() {
         binding.viewSwitcher.displayedChild = 0
         binding.countDownDest.countDown = resetTimeFragment
 
+        mediaPlayer?.stop()
+        mediaPlayer?.prepare()
         timer.cancel()
+        
         CoroutineScope(Dispatchers.IO).launch {
             timerDatabase.timerStateDao().delete()
         }
@@ -163,7 +166,8 @@ class CombinedFragment : Fragment() {
                         if (timer.isDone())
                             timer.start(timeFragment)
                     },
-                    timeFragment.delay * 1000L)
+                    timeFragment.delay * 1000L
+            )
 
             mediaPlayer?.start()
             CoroutineScope(Dispatchers.IO).launch {

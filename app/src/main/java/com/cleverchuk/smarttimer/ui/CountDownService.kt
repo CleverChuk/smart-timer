@@ -8,6 +8,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Binder
 import android.os.Build
@@ -33,13 +34,16 @@ class CountDownService : Service() {
     private val timerDatabase: TimerDatabase = TimerDatabase.getDatabase(this)
     private var state: Timer.State? = null
     private var time: Int? = null
-    private val uri: Uri = Uri.parse("android.resource://com.cleverchuk.smarttimer/" + R.raw.faded_chords);
+    private val uri: Uri = Uri.parse("android.resource://com.cleverchuk.smarttimer/" + R.raw.faded_chords)
+    private lateinit var mediaPlayer: MediaPlayer
+
 
     private val stateObserver: Observer<Timer.State> = Observer { state ->
         if ((state == Timer.State.DONE) && timeFragment.repeat) {
             val notificationManager: NotificationManager = this@CountDownService.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.cancel(NOTIFICATION_ID)
             notificationManager.notify(VIBRATE_NOTIFICATION_ID, createNotificationWithVibration(timeFragment.hr, timeFragment.min, timeFragment.sec))
+            mediaPlayer.start()
             timer?.start(timeFragment)
         }
     }
@@ -66,6 +70,7 @@ class CountDownService : Service() {
         timer = Timer()
         startForeground(NOTIFICATION_ID, createNotificationWithoutVibration(timer?.hr, timer?.min, timer?.sec))
         Log.i("onCreate", "The service has been created".toUpperCase(Locale.ROOT))
+        mediaPlayer = MediaPlayer.create(this, R.raw.faded_chords)
 
     }
 
@@ -113,6 +118,10 @@ class CountDownService : Service() {
             timer?.timeFragment?.removeObserver(timerObserver)
             timer?.cancel()
             timer = null
+
+            if (mediaPlayer.isPlaying)
+                mediaPlayer.stop()
+            mediaPlayer.release()
 
             wakeLock?.let {
                 if (it.isHeld) {
